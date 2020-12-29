@@ -6,10 +6,8 @@ execution, user needs to input the expected number of results as well as the sel
 year and date with the format like YYYY-MM. After that, the maps that were added in that 
 date will be printed out in a csv spreadsheet with the action date you performed.
 
-If you want to check the requested JSON data, you can uncomment the block cell, print the 
-reqested data and read locally.
 
-
+------------
 Original created on Dec 01, 2020
 @author: Ziying/Gene Cheng (cheng904@umn.edu)
 
@@ -20,6 +18,7 @@ import json
 import time
 import csv
 import urllib.request
+import pandas as pd
 
 ## user input
 # number of map search results
@@ -40,150 +39,70 @@ req = f'https://umedia.lib.umn.edu/search.json?facets%5Bcontributing_organizatio
 res = urllib.request.urlopen(req)
 data = json.loads(res.read())             
 
-# Uncomment the following code block if you want to see the request json data locally
+
 with open('request_data.json', 'w') as f:
     json.dump(data, f)
-    print("#### Requested data is stored in request_data.json ####")
 
 
-def NewItems(item):
-    '''
-    Function that extracts a list of specific metadata elements.
-
-    Parameter
-    ---------
-    item: dictionary
-        A dictionary refers to a map item with all metadata elements.
-
-    Return
-    ------
-    metadataList: list
-        A list stores all specific metadata elements for a map item.
-
-    '''  
-    identifier = item['system_identifier']
-    slug = item['id']
-    print(f'Collecting map id: {slug}')
-    
-    image = item['object']
-    isPartOf =item['set_spec']
-    parentId = item['parent_id']
-    title = item['title']
-    dateIssued = item['date_created'][0]
-    types = 'Maps'
-    formats = 'jpg'
-    keyword = item['subject'][0]
-    language = item['language'][0]
-    accessRights = item['local_rights']
-    iiif = f'https://cdm16022.contentdm.oclc.org/iiif/info/{isPartOf}/{parentId}/manifest.json'
-
-    # some attributes may not exist in all map items    
-    ## publisher
-    try:
-        publisher = item['publisher']
-    except:
-        publisher = ''
-
-    ## creator
-    try:
-        creator = item['creator'][0]
-    except:
-        creator = ''
-
-    ## description
-    if 'description' in item:
-        description = item['description']
-    else:
-        description = ''
-
-    ## dimensions
-    if 'dimensions' in item:
-        dimensions = item['dimensions']
-    else:
-        dimensions = ''
-
-    # 'descriptions' concatenates the 'description' and the 'dimensions' info
-    descriptions = description + dimensions
-
-    ## city/state/country
-    spatialCoverage = ''
-    if 'city' in item:
-        city = item['city'][0]
-        spatialCoverage += city
-    if 'state' in item:
-        state = item['state'][0]
-        spatialCoverage += ','
-        spatialCoverage += state
-    if 'country' in item:
-        country = item['country'][0]
-        spatialCoverage += ','
-        spatialCoverage += country
-
-    ## if no city/state/country in the attribute, then use continent/region as the spatial coverage
-    if not spatialCoverage:
-        if 'continent' in item:
-            continent = item['continent'][0]
-            spatialCoverage = continent
-        if 'region' in item:
-            region =  item['region'][0]
-            spatialCoverage = region
+# fieldnames for output csv file
+fieldnames = ['Title', 'Alternative Title', 'Description', 'Language', 'Creator', 'Publisher',
+              'Subject', 'Keyword', 'Date Issued', 'Temporal Coverage', 'Date Range',
+              'Spatial Coverage', 'Bounding Box', 'Information', 'Download', 'Image', 'Manifest', 
+              'Identifier', 'Slug', 'Access Rights', 'Provenance', 'Code', 'Is Part Of', 'Status', 
+              'Accrual Method', 'Date Accessioned', 'Rights', 'Genre', 'Type', 'Format', 'Geometry Type',
+              'Suppressed', 'Child']      
 
 
-    metadataList = [identifier, slug, image, isPartOf, title, descriptions, dateIssued, 
-                    creator, publisher, types, formats, keyword, language, 
-                    spatialCoverage, accessRights, iiif]
-
-    return metadataList
-
-
-def printReport(path, fields, metadataList):
-    '''
-    Function that prints metadata fields and elements to a csv file.
-
-    Parameters
-    -----------
-    path: str
-        The output csv file path along with its file name.
-    fields: list
-        The field names of the output spreadsheet.
-    metadataList: list
-        The metadata content for newly added maps.
-    
-    '''
-    with open(path, 'w', newline='', encoding='utf-8') as outfile:
-        csvout = csv.writer(outfile)
-        csvout.writerow(fields)      # fieldnames
-
-        for item in metadataList:
-            csvout.writerow(item)    # elements
-        print("#### Report created ####")
+# dataframe with full metadata from json response
+full_df = pd.read_json('request_data.json')
+# create an empty dataframe with output csv fieldnames only
+out_df = pd.DataFrame(columns=fieldnames)
 
 
+## extract content from full_df
+out_df['Alternative Title'] = full_df['title']
+out_df['Description'] = full_df['description'] + ' Dimensions: ' + full_df['dimensions']
+out_df['Language'] = full_df['language'].str.join('; ')
+out_df['Creator'] = full_df['creator'].str.join('; ')
+out_df['Publisher'] = full_df['publisher']
+out_df['Keyword'] = full_df['subject'].str.join('|')
+out_df['Date Issued'] = full_df['date_created'].str.join('')
 
-# store all new added items' metadata
-All_New_Items = []
+# spatial coverage
+out_df['Spatial Coverage'] = full_df['city'] + full_df['state']  
+out_df['Spatial Coverage'] = out_df['Spatial Coverage'].str.join(', ')      # city, state
 
-# iterate through maps
-for i in range(len(data)):    
-    # find added month for each item
-    add_time = data[i]['date_added']
-    add_month = add_time[0:7]
-    
-    # compare added month with input month
-    if add_month == yrmon:
-        # collect metadata for this item
-        metadataList = NewItems(data[i])
-        All_New_Items.append(metadataList)
+out_df['Spatial Coverage'] = out_df['Spatial Coverage'].fillna(full_df['country'].str.join(''))    # replace NaN with country
+out_df['Spatial Coverage'] = out_df['Spatial Coverage'].fillna(full_df['continent'].str.join(''))  # replace NaN with continent
+out_df['Spatial Coverage'] = out_df['Spatial Coverage'].fillna(full_df['region'].str.join(''))     # replace NaN with region
 
-        
-# fieldnames of output csv file
-fieldnames = ['Identifier', 'Slug', 'Image', 'Is Part Of', 'Title', 'Description',
-              'Date Issued', 'Creator', 'Publisher', 'Types', 'Format', 
-              'Keyword', 'Language', 'Spatial Coverage', 'Access Rights', 'IIIF']        
+out_df['Information'] = 'https://umedia.lib.umn.edu/item/' + full_df['id']
+out_df['Download'] = 'http://cdm16022.contentdm.oclc.org/utils/getfile/collection/' + full_df['set_spec'] + '/id/' + full_df['parent_id'].astype(str) + '/filename/print/page/download/fparams/forcedownload'
+out_df['Image'] = full_df['thumb_url']
+out_df['Manifest'] = 'https://cdm16022.contentdm.oclc.org/iiif/info/' + full_df['set_spec'] + '/' + full_df['parent_id'].astype(str) + '/manifest.json'
+out_df['Identifier'] = full_df['system_identifier']
+out_df['Slug'] = full_df['id']
+out_df['Access Rights'] = full_df['local_rights']
 
 
-# print csv spreadsheet with items that are added in that month
+## hard-code columns
+out_df['Provenance'] = 'University of Minnesota'
+out_df['Code'] = '05d-01'
+out_df['Is Part Of'] = '05d-01'
+out_df['Status'] = 'Active'
+out_df['Accrual Method'] = 'Blacklight'
+out_df['Rights'] = 'Public'
+out_df['Genre'] = 'Maps'
+out_df['Type'] = 'Image'
+out_df['Format'] = 'JPEG'
+out_df['Geometry Type'] = 'Image'
+out_df['Suppressed'] = 'FALSE'
+out_df['Child'] = 'FALSE'
+
+
+# export dataframe to csv file
 # add the action date to the output filename with the format (YYYYMMDD)
 ActionDate = time.strftime('%Y%m%d')
 filepath = "reports/allNewItems_%s.csv" % (ActionDate)
-printReport(filepath, fieldnames, All_New_Items)
+out_df.to_csv(filepath, index=False)
+print("#### CSV report is created ####")
