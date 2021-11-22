@@ -12,7 +12,9 @@ CSV files in the 'reports' folder are the metadata extracted by thier jsons by m
 Original created on Dec 01, 2020
 @author: Ziying/Gene Cheng (cheng904@umn.edu)
 
-updated on May 1st, 2021 by Ziying/Gene Cheng (cheng904@umn.edu)
+updated on May 1, 2021 by Ziying/Gene Cheng (cheng904@umn.edu)
+updated on Nov 22, 2021 by Ziying/Gene Cheng
+    - update description format
 
 '''
 
@@ -42,7 +44,7 @@ months = pd.date_range(dateBegin, dateEnd,freq='M').strftime("%Y-%m").tolist()
 if dateEnd not in months:
     months.append(dateEnd)
 
-fieldnames = ['Title', 'Alternative Title', 'Description', 'Language', 'Creator',
+fieldnames = ['Title', 'Alternative Title', 'Description', 'Language', 'Creator', 'Publisher',
               'Resource Type', 'Keyword', 'Date Issued', 'Temporal Coverage', 'Date Range',
               'Spatial Coverage', 'Bounding Box', 'Information', 'Download', 'Image', 'Manifest', 
               'Identifier', 'ID', 'Access Rights', 'Provider', 'Code', 'Member Of', 'Status', 
@@ -84,19 +86,24 @@ for month in months:
             # create metadata by month
             print('> Preparing Metadata ...')
             full_df = pd.read_json(jsonpath)
+            full_df = full_df.fillna('')
             out_df = pd.DataFrame(columns=fieldnames)
 
             ## extract content from full_df
             out_df['Title'] = full_df['title']
             out_df['Alternative Title'] = full_df['title']
-            try:
-                out_df['Description'] = full_df['description'] + ' Dimensions: ' + full_df['dimensions']
-            except:
-                out_df['Description'] = ''
+            
+            ## format Description by concatenating <description>|<notes>|<dimensions>|<scale>
+            if 'description' in full_df.columns:
+                cols = ['description', 'notes', 'dimensions', 'scale']
+            else:
+                cols = ['notes', 'dimensions', 'scale']
+            out_df['Description'] = full_df[cols].apply(lambda row: '|'.join(row.values.astype(str)), axis=1)
+
 
             out_df['Language'] = full_df['language'].str.join('; ')
             out_df['Creator'] = full_df['creator'].str.join('; ')
-            # out_df['Publisher'] = full_df['publisher']
+            out_df['Publisher'] = full_df['publisher']
             out_df['Keyword'] = full_df['subject'].str.join('|')
             out_df['Date Issued'] = full_df['date_created'].str.join('')
 

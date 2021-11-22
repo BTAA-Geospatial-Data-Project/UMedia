@@ -32,9 +32,8 @@ If the `dateAdded_YYYYMM.csv` from **reports** folder does not include `Bounding
 
 2. Read the `bbox_lookup.csv` file and extract the **System Identifier** and its **Coordinates** only to a dictionary. Some values may have leading or trailing spaces, so that we need to remove the spaces by using the `strip()` method. 
 
-3. Cleaning data will be the most important process, since the format from the `bbox_lookup.csv` are four `degree, minute, second` coordinates connected together by some characters like `/` and `--`. For example: `(E 12°00'--E 48°00'/N 57°00'--N 47°00').` We need to do the following cleanup steps before store into a new lookup dictionary:
-    - So first of all, we will use the `clean_coords()` function to remove the parentheses and the trailing period, and separate it into 4 coordinates individually:  `E 12°00'`, `E 48°00'`, 
-    `N 57°00'` and `N 47°00'`.
+3. Cleaning data will be the most important process, since the coordinates values from the lookup sheet have 2 different formats of **Degree, Minute, Second** coordinates concatenated together which represent the same coordinates order by **West, East, North and South**. For example: `W0931944 W0931137 N0450304 N0445324; (W 93°19\'44"--W 93°11\'37"/N 45°03\'04"--N 44°53\'24")`. We need to do the following cleanup steps before store into a new lookup dictionary:
+    - So first of all, we will use the `clean_coords()` function to choose the first format of DMS `W0931944 W0931137 N0450304 N0445324` and separate them into `w,e,n,s` individually. 
 
     - Next, continue using the `parse_dms()` function to parse each coordinate into `direction, degree, minute and second` separately.
 
@@ -76,8 +75,8 @@ If you have any questions, feel free to contact:
 
 - Updated on May 1st, 2021 by Gene Cheng
 
-- Update on Nov 08, 2021 by Gene Cheng
-    - Remove `Publisher` field
-    - No manual edit for `Title` field
+- Update on Nov 22, 2021 by Gene Cheng
+    - update `Description` field from **harvest.py** by concatenating `<description>|<notes>|<dimensions>|<scale>`
+    - update **find_bbox.ipynb** to parse and convert DMS to DD
     <!-- - Use [iso639-lang](https://pypi.org/project/iso639-lang/) library for ISO 639 standard to generate `Language` value to  **ISO 639-2 Code** -->
 
